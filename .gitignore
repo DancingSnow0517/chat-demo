@@ -9,3 +9,6 @@ build/
 .env.*
 !.env.example
 tmp/
+
+# 本地自用，不入库
+docs/video-script.md
