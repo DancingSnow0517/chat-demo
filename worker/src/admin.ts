@@ -41,36 +41,18 @@ export const handleAddUser = async (request: Request, env: Env): Promise<Respons
     return error(400, 'invalid github id')
   }
 
-  const response = await fetch(`https://api.github.com/user/${payload.githubId}`, {
-    headers: {
-      Accept: 'application/vnd.github+json',
-      'User-Agent': 'chat-worker',
-    },
-  })
-  if (!response.ok) {
-    return error(404, 'github user not found')
-  }
-  const ghUser = (await response.json()) as {
-    id?: number
-    login?: string
-    name?: string | null
-    avatar_url?: string
-  }
-  if (!ghUser.id || !ghUser.login) {
-    return error(502, 'unexpected github response')
-  }
-
   const now = Date.now()
   const existing = await env.DB.prepare('SELECT github_id FROM users WHERE github_id = ?')
-    .bind(ghUser.id)
+    .bind(payload.githubId)
     .first<{ github_id: number }>()
   if (existing) {
     return error(409, 'user already exists')
   }
+  // login/name/avatar_url 占位，首次 OAuth 登录时会被真实资料覆盖
   await env.DB.prepare(
     'INSERT INTO users (github_id, login, name, avatar_url, is_admin, created_at, last_login_at) VALUES (?, ?, ?, ?, 0, ?, ?)'
   )
-    .bind(ghUser.id, ghUser.login, ghUser.name ?? ghUser.login, ghUser.avatar_url ?? '', now, 0)
+    .bind(payload.githubId, '', '', '', now, 0)
     .run()
   return json({ ok: true })
 }

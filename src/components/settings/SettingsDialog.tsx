@@ -610,7 +610,7 @@ const AccountSection = () => {
   return (
     <>
       <div className={styles.accountUser}>
-        <img className={styles.accountAvatar} src={user.avatarUrl} alt="" />
+        {user.avatarUrl ? <img className={styles.accountAvatar} src={user.avatarUrl} alt="" /> : <div className={styles.accountAvatar} />}
         <div className={styles.accountUserText}>
           <span className={styles.accountUserName}>{user.name}</span>
           <span className={styles.accountUserLogin}>@{user.login}</span>
@@ -727,7 +727,7 @@ const AdminSection = () => {
         <div className={styles.userList}>
           {users.map((user) => (
             <div key={user.githubId} className={styles.userItem}>
-              <img className={styles.userItemAvatar} src={user.avatarUrl} alt="" />
+              {user.avatarUrl ? <img className={styles.userItemAvatar} src={user.avatarUrl} alt="" /> : <div className={styles.userItemAvatar} />}
               <div className={styles.userItemText}>
                 <div className={styles.userItemName}>
                   <span>{user.name}</span>

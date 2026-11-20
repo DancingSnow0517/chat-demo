@@ -24,10 +24,39 @@ const request = async (url: string, init?: RequestInit): Promise<Response> => {
 
 export const listUsers = async (): Promise<AdminUser[]> => {
   const response = await request('/api/admin/users')
-  return (await response.json()) as AdminUser[]
+  const users = (await response.json()) as AdminUser[]
+  // 从未登录的用户在 D1 里没有 login/name/avatar，实时从 GitHub 拉取补全
+  await Promise.all(
+    users.map(async (user) => {
+      if (!user.login) {
+        try {
+          const ghResponse = await fetch(`https://api.github.com/user/${user.githubId}`, {
+            headers: { Accept: 'application/vnd.github+json' },
+          })
+          if (ghResponse.ok) {
+            const data = (await ghResponse.json()) as {
+              login?: string
+              name?: string | null
+              avatar_url?: string
+            }
+            user.login = data.login ?? String(user.githubId)
+            user.name = data.name ?? data.login ?? String(user.githubId)
+            user.avatarUrl = data.avatar_url ?? ''
+          } else {
+            user.login = String(user.githubId)
+            user.name = String(user.githubId)
+          }
+        } catch {
+          user.login = String(user.githubId)
+          user.name = String(user.githubId)
+        }
+      }
+    })
+  )
+  return users
 }
 
-/** 先用 GitHub 公开 API 把 username 转成数字 ID，再发给 Worker。 */
+/** 先用 GitHub 公开 API 拿到用户资料，再发给 Worker 落库。 */
 export const addUser = async (login: string): Promise<void> => {
   const username = login.trim().replace(/^@/, '')
   if (!username) {
@@ -41,7 +70,7 @@ export const addUser = async (login: string): Promise<void> => {
   }
   const ghUser = (await ghResponse.json()) as { id?: number }
   if (!ghUser.id) {
-    throw new Error('GitHub user missing id')
+    throw new Error('unexpected github response')
   }
   await request('/api/admin/users', {
     method: 'PUT',
