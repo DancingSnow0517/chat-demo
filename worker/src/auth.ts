@@ -93,18 +93,23 @@ const getStateCookie = (request: Request): string | null => {
   return null
 }
 
-const redirect = (location: string, headers?: HeadersInit) =>
-  new Response(null, { status: 302, headers: { Location: location, ...headers } })
+const redirect = (location: string, extraHeaders?: Record<string, string>) =>
+  new Response(null, {
+    status: 302,
+    headers: { Location: location, ...extraHeaders },
+  })
 
 export const handleAuthCallback = async (request: Request, env: Env): Promise<Response> => {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
   const state = url.searchParams.get('state')
   const savedState = getStateCookie(request)
-  const clearState = { 'Set-Cookie': 'dsh_oauth_state=; HttpOnly; Secure; SameSite=Lax; Path=/api/auth; Max-Age=0' }
+
+  // 清除 state Cookie 的头部（单独返回，避免覆盖会话 Cookie）
+  const clearStateHeader = 'dsh_oauth_state=; HttpOnly; Secure; SameSite=Lax; Path=/api/auth; Max-Age=0'
 
   if (!code || !state || !savedState || state !== savedState) {
-    return redirect('/?login_error=github', clearState)
+    return redirect('/?login_error=github', { 'Set-Cookie': clearStateHeader })
   }
 
   const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
@@ -117,11 +122,11 @@ export const handleAuthCallback = async (request: Request, env: Env): Promise<Re
     }),
   })
   if (!tokenResponse.ok) {
-    return redirect('/?login_error=github', clearState)
+    return redirect('/?login_error=github', { 'Set-Cookie': clearStateHeader })
   }
   const tokenBody = (await tokenResponse.json()) as { access_token?: string }
   if (!tokenBody.access_token) {
-    return redirect('/?login_error=github', clearState)
+    return redirect('/?login_error=github', { 'Set-Cookie': clearStateHeader })
   }
 
   const userResponse = await fetch('https://api.github.com/user', {
@@ -132,18 +137,20 @@ export const handleAuthCallback = async (request: Request, env: Env): Promise<Re
     },
   })
   if (!userResponse.ok) {
-    return redirect('/?login_error=github', clearState)
+    return redirect('/?login_error=github', { 'Set-Cookie': clearStateHeader })
   }
   const user = (await userResponse.json()) as { id?: number }
   if (!user.id || String(user.id) !== env.ALLOWED_GITHUB_ID) {
-    return redirect('/?login_error=denied', clearState)
+    return redirect('/?login_error=denied', { 'Set-Cookie': clearStateHeader })
   }
 
   const token = await signSession(env)
-  return redirect('/', {
-    ...clearState,
-    'Set-Cookie': setSessionCookie(token),
+  const headers = new Headers({
+    Location: '/',
+    'Set-Cookie': clearStateHeader,
   })
+  headers.append('Set-Cookie', setSessionCookie(token))
+  return new Response(null, { status: 302, headers })
 }
 
 export const handleAuthSession = async (request: Request, env: Env): Promise<Response> => {

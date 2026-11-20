@@ -39,8 +39,13 @@ export const loadSession = async (id: string): Promise<Session | undefined> => {
     return undefined
   }
   const payload = await json<{ body: string }>(response)
-  return JSON.parse(payload.body) as Session
+  const session = JSON.parse(payload.body) as Session
+  savedVersions.set(session.id, session.updatedAt)
+  return session
 }
+
+/** 每个会话上一次成功保存时的 updatedAt，用于乐观写 */
+const savedVersions = new Map<string, number>()
 
 export const saveSession = async (session: Session, files: StoredFile[] = []): Promise<void> => {
   // 先把原件传到服务端，再写会话元数据，保证 fileIds 引用的记录存在
@@ -59,18 +64,21 @@ export const saveSession = async (session: Session, files: StoredFile[] = []): P
       )
     ),
   ]
-  await request(`${API}/sessions/${encodeURIComponent(session.id)}`, {
+  const response = await request(`${API}/sessions/${encodeURIComponent(session.id)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       title: session.title,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
-      baseUpdatedAt: session.createdAt === session.updatedAt ? null : session.updatedAt,
+      baseUpdatedAt: savedVersions.get(session.id) ?? null,
       body: JSON.stringify(session),
       fileIds,
     }),
   })
+  if (response.ok) {
+    savedVersions.set(session.id, session.updatedAt)
+  }
 }
 
 /** 未打开的会话也可重命名，只读取该会话，原子更新详情和列表。 */
