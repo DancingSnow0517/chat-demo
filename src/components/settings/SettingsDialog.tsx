@@ -46,13 +46,13 @@ export const SettingsDialog = () => {
 }
 
 const baseSections: { value: SettingsSection; label: TranslationKey; icon: ReactNode }[] = [
+  { value: 'account', label: 'settingsAccount', icon: <IconSettingsOutline16 /> },
   {
     value: 'general',
     label: 'settingDialogAsideGeneralOptionLabel',
     icon: <IconSettingsOutline16 />,
   },
   { value: 'data', label: 'settingDialogAsideDataOptionLabel', icon: <IconDataOutline16 /> },
-  { value: 'account', label: 'settingsAccount', icon: <IconSettingsOutline16 /> },
 ]
 
 const SettingsContent = () => {
@@ -621,7 +621,6 @@ const AccountSection = () => {
       </div>
       <SettingCell
         label={t('settingsApiKey')}
-        description={t('apiKeyDescription')}
         status={keyStatus}
         action={
           <div className={styles.apiKeyForm}>
@@ -653,7 +652,7 @@ const AdminSection = () => {
   const t = useTranslate()
   const [users, setUsers] = useState<AdminUser[] | null>(null)
   const [loadFailed, setLoadFailed] = useState(false)
-  const [githubIdInput, setGithubIdInput] = useState('')
+  const [loginInput, setLoginInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<AdminUser | null>(null)
 
@@ -671,14 +670,14 @@ const AdminSection = () => {
   }, [])
 
   const onAdd = async () => {
-    const id = Number(githubIdInput.trim())
-    if (!Number.isInteger(id) || id <= 0 || busy) {
+    const login = loginInput.trim().replace(/^@/, '')
+    if (!login || busy) {
       return
     }
     setBusy(true)
     try {
-      await addUser(id)
-      setGithubIdInput('')
+      await addUser(login)
+      setLoginInput('')
       showToast({ key: 'userManagementAddSuccess' })
       await reload()
     } catch {
@@ -711,13 +710,12 @@ const AdminSection = () => {
         <input
           className={styles.userAddInput}
           type="text"
-          inputMode="numeric"
-          placeholder={t('userManagementGithubIdPlaceholder')}
-          value={githubIdInput}
+          placeholder={t('userManagementGithubLoginPlaceholder')}
+          value={loginInput}
           disabled={busy}
-          onChange={(event) => setGithubIdInput(event.target.value)}
+          onChange={(event) => setLoginInput(event.target.value)}
         />
-        <Button variant="primary" size="m" disabled={busy || !githubIdInput.trim()} onClick={() => void onAdd()}>
+        <Button variant="primary" size="m" disabled={busy || !loginInput.trim()} onClick={() => void onAdd()}>
           {t('userManagementAddUser')}
         </Button>
       </div>

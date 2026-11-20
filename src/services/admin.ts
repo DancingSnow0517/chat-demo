@@ -27,11 +27,11 @@ export const listUsers = async (): Promise<AdminUser[]> => {
   return (await response.json()) as AdminUser[]
 }
 
-export const addUser = async (githubId: number): Promise<void> => {
+export const addUser = async (login: string): Promise<void> => {
   await request('/api/admin/users', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ githubId }),
+    body: JSON.stringify({ login }),
   })
 }
 
