@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTranslate } from '../i18n/index.js'
 import { useSettings } from '../services/settings.js'
 import { checkSession, useAuth } from '../services/auth.js'
@@ -10,6 +10,7 @@ import {
   selectSession,
   useChatStore,
 } from '../services/chat/store.js'
+import { bindHashRoute, openHashSession } from '../services/chat/hashRoute.js'
 import { SearchPanel } from '../components/search/SearchPanel.js'
 import { closeSearchPanel } from '../components/search/searchPanelState.js'
 import { SessionView } from '../components/session/SessionView.js'
@@ -61,6 +62,16 @@ export const App = () => {
   // 文件数、存储空间达到上限时，附件上只显示「上传失败」，原因用 toast 说明
   useEffect(() => onUploadNotice(showToast), [])
   useEffect(bindChatPersistence, [])
+  useEffect(bindHashRoute, [])
+
+  // 首次就绪时按地址栏 #/{id} 打开对应会话（直接访问链接的场景）
+  const hashApplied = useRef(false)
+  useEffect(() => {
+    if (ready && !hashApplied.current) {
+      hashApplied.current = true
+      openHashSession()
+    }
+  }, [ready])
 
   // 搜索结果面板只属于当前会话
   useEffect(closeSearchPanel, [activeId])
