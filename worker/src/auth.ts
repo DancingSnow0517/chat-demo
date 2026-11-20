@@ -7,6 +7,7 @@ export interface Env {
   GITHUB_CLIENT_SECRET: string
   ADMIN_GITHUB_ID: string
   SESSION_SECRET: string
+  GITHUB_API_TOKEN?: string
 }
 
 export interface SessionUser {

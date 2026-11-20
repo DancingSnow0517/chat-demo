@@ -116,7 +116,7 @@ export const zh = {
   settingsUserManagement: '用户管理',
   userManagementAddUser: '添加用户',
   userManagementGithubLogin: 'GitHub 用户名',
-  userManagementGithubLoginPlaceholder: '输入 GitHub 用户名（如 @octocat）',
+  userManagementGithubLoginPlaceholder: '输入 GitHub 用户名',
   userManagementAddSuccess: '已添加',
   userManagementAddFailed: '添加失败，请确认 GitHub 用户名正确',
   userManagementDeleteConfirm: '确认删除该用户？其全部对话和附件将被清除。',

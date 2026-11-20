@@ -24,3 +24,4 @@ bucket_name = "chat-files"
 #   GITHUB_CLIENT_SECRET  OAuth App 的 Client Secret
 #   ADMIN_GITHUB_ID       管理员 GitHub 数字 user id（首个可登录账号，之后由管理界面加人）
 #   SESSION_SECRET        32 字节随机 hex，会话 Cookie 的 HMAC 密钥
+#   GITHUB_API_TOKEN      可选，GitHub Personal Access Token，用于 admin 接口调 GitHub API 时避免限流

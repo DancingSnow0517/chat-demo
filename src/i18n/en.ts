@@ -120,7 +120,7 @@ export const en = {
   settingsUserManagement: 'User Management',
   userManagementAddUser: 'Add User',
   userManagementGithubLogin: 'GitHub Username',
-  userManagementGithubLoginPlaceholder: 'Enter GitHub username (e.g. @octocat)',
+  userManagementGithubLoginPlaceholder: 'Enter GitHub username',
   userManagementAddSuccess: 'Added',
   userManagementAddFailed: 'Failed to add. Please check the GitHub username.',
   userManagementDeleteConfirm: 'Delete this user? All their chats and attachments will be removed.',

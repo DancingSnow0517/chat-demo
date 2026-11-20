@@ -36,23 +36,45 @@ export const handleListUsers = async (env: Env): Promise<Response> => {
 }
 
 export const handleAddUser = async (request: Request, env: Env): Promise<Response> => {
-  const payload = (await request.json()) as { githubId?: number }
-  if (typeof payload.githubId !== 'number' || !Number.isInteger(payload.githubId) || payload.githubId <= 0) {
-    return error(400, 'invalid github id')
+  const payload = (await request.json()) as { login?: string }
+  const login = typeof payload.login === 'string' ? payload.login.trim() : ''
+  if (!login || !/^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?$/.test(login)) {
+    return error(400, 'invalid github login')
+  }
+
+  // 带 PAT 调 GitHub，避免未认证限流
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'chat-worker',
+  }
+  if (env.GITHUB_API_TOKEN) {
+    headers.Authorization = `Bearer ${env.GITHUB_API_TOKEN}`
+  }
+  const response = await fetch(`https://api.github.com/users/${encodeURIComponent(login)}`, { headers })
+  if (!response.ok) {
+    return error(404, 'github user not found')
+  }
+  const ghUser = (await response.json()) as {
+    id?: number
+    login?: string
+    name?: string | null
+    avatar_url?: string
+  }
+  if (!ghUser.id || !ghUser.login) {
+    return error(502, 'unexpected github response')
   }
 
   const now = Date.now()
   const existing = await env.DB.prepare('SELECT github_id FROM users WHERE github_id = ?')
-    .bind(payload.githubId)
+    .bind(ghUser.id)
     .first<{ github_id: number }>()
   if (existing) {
     return error(409, 'user already exists')
   }
-  // login/name/avatar_url 占位，首次 OAuth 登录时会被真实资料覆盖
   await env.DB.prepare(
     'INSERT INTO users (github_id, login, name, avatar_url, is_admin, created_at, last_login_at) VALUES (?, ?, ?, ?, 0, ?, ?)'
   )
-    .bind(payload.githubId, '', '', '', now, 0)
+    .bind(ghUser.id, ghUser.login, ghUser.name ?? ghUser.login, ghUser.avatar_url ?? '', now, 0)
     .run()
   return json({ ok: true })
 }
