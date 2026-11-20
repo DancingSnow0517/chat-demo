@@ -510,6 +510,38 @@ export const IconPhotoErrorFill20 = () => (
   </svg>
 )
 
+/** 用户图标：头部圆形 + 肩部弧线，用于账户导航与头像占位。 */
+export const IconUserOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="8" cy="5.4" r="2.7" stroke="currentColor" strokeWidth="1.3" />
+    <path
+      d="M2.8 13.6c.7-2.4 2.8-3.8 5.2-3.8s4.5 1.4 5.2 3.8"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+    />
+  </svg>
+)
+
+/** 登出图标：门框 + 向右离开的箭头。 */
+export const IconLogoutOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M6 2.8H3.9A1.1 1.1 0 0 0 2.8 3.9v8.2a1.1 1.1 0 0 0 1.1 1.1H6"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+    />
+    <path
+      d="M6.3 8h6.9m-2.4-2.4L13.2 8l-2.4 2.4"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
 /** 错误提示图标：圆环 + 感叹号，颜色跟随 currentColor */
 export const IconToastError16 = () => (
   <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">

@@ -132,6 +132,7 @@ export const en = {
   userManagementNeverLoggedIn: 'Never signed in',
   userManagementLoadFailed: 'Failed to load users',
   logout: 'Sign out',
+  systemSettings: 'System settings',
   settingsAccount: 'Account',
   historyImport: 'Import chat history',
   historyImportConfirm: 'Import',

@@ -8,6 +8,7 @@ import {
   IconLightOutline16,
   IconSettingsOutline16,
   IconUploadOutline14,
+  IconUserOutline16,
 } from '../base/icons.js'
 import {
   BackupError,
@@ -46,12 +47,12 @@ export const SettingsDialog = () => {
 }
 
 const baseSections: { value: SettingsSection; label: TranslationKey; icon: ReactNode }[] = [
-  { value: 'account', label: 'settingsAccount', icon: <IconSettingsOutline16 /> },
   {
     value: 'general',
     label: 'settingDialogAsideGeneralOptionLabel',
     icon: <IconSettingsOutline16 />,
   },
+  { value: 'account', label: 'settingsAccount', icon: <IconUserOutline16 /> },
   { value: 'data', label: 'settingDialogAsideDataOptionLabel', icon: <IconDataOutline16 /> },
 ]
 

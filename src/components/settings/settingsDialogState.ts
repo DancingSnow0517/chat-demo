@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-/** 设置弹窗的分组：通用设置 / 数据管理 / 账户 / 用户管理 */
+/** 设置弹窗的分组：通用设置 / 账户 / 数据管理 / 用户管理 */
 export type SettingsSection = 'general' | 'data' | 'account' | 'admin'
 
 /** 设置弹窗：侧边栏底部、401 提示都可以打开；section 为打开时选中的分组 */

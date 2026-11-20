@@ -1,13 +1,22 @@
 import clsx from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
-import { IconPanelLeftOutline16, IconSettingsOutline16, NewChatIcon } from '../base/icons.js'
+import {
+  IconEllipsisOutline16,
+  IconLogoutOutline16,
+  IconPanelLeftOutline16,
+  IconSettingsOutline16,
+  IconUserOutline16,
+  NewChatIcon,
+} from '../base/icons.js'
 import { setSiderCollapsed } from '../../services/settings.js'
+import { logout, useAuth } from '../../services/auth.js'
 import { groupSessions } from '../../services/chat/sessionGroups.js'
 import { newChat, removeSession, useChatStore } from '../../services/chat/store.js'
 import type { SessionSummary } from '../../services/chat/types.js'
 import { Button } from '../base/Button.js'
 import { IconButton } from '../base/IconButton.js'
+import { Menu } from '../base/Menu.js'
 import { Modal } from '../base/Modal.js'
 import { showToast } from '../base/toastState.js'
 import { openSettings } from '../settings/settingsDialogState.js'
@@ -48,6 +57,8 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
       window.removeEventListener('focus', refresh)
     }
   }, [])
+
+  const user = useAuth((state) => state.user)
 
   return (
     <div className={clsx(styles.sider, mobile && styles.mobile)}>
@@ -92,12 +103,47 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
         </div>
       </div>
       <div className={styles.bottom}>
-        <button type="button" className={styles.settings} onClick={() => openSettings('general')}>
-          <span className={styles.settingsIcon}>
-            <IconSettingsOutline16 />
-          </span>
-          <span className={styles.settingsLabel}>{t('settings')}</span>
-        </button>
+        <Menu
+          side="top"
+          anchorClassName={styles.menuAnchor}
+          options={[
+            {
+              key: 'settings',
+              label: t('systemSettings'),
+              icon: <IconSettingsOutline16 />,
+              onSelect: () => {
+                openSettings('general')
+                closeMobileSider()
+              },
+            },
+            {
+              key: 'logout',
+              label: t('logout'),
+              icon: <IconLogoutOutline16 />,
+              onSelect: () => void logout(),
+            },
+          ]}
+        >
+          {({ open, toggle }) => (
+            <button
+              type="button"
+              className={clsx(styles.profile, open && styles.profileActive)}
+              onClick={toggle}
+            >
+              <span className={styles.avatar}>
+                {user?.avatarUrl ? (
+                  <img className={styles.avatarImage} src={user.avatarUrl} alt="" />
+                ) : (
+                  <IconUserOutline16 />
+                )}
+              </span>
+              <span className={styles.profileName}>{user?.name ?? user?.login ?? ''}</span>
+              <span className={styles.profileMore}>
+                <IconEllipsisOutline16 />
+              </span>
+            </button>
+          )}
+        </Menu>
       </div>
       {deleting ? (
         <Modal

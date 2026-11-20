@@ -128,6 +128,7 @@ export const zh = {
   userManagementNeverLoggedIn: '从未登录',
   userManagementLoadFailed: '加载用户列表失败',
   logout: '登出',
+  systemSettings: '系统设置',
   settingsAccount: '账户',
   historyImport: '导入历史对话',
   historyImportConfirm: '确认导入',
