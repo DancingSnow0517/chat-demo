@@ -147,6 +147,12 @@
   flex-wrap: wrap;
 }
 
+/* 表单较宽，标签与表单之间只留小间距，避免标签换行 */
+.apiKeyCell .text {
+  flex: 1 0 auto;
+  padding-right: 8px;
+}
+
 .apiKeyForm {
   display: flex;
   align-items: center;
