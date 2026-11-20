@@ -1,3 +1,4 @@
+import logoUrl from '../../assets/logo.png'
 import { useTranslate } from '../../i18n/index.js'
 import { consumeLoginError } from '../../services/auth.js'
 import { Button } from '../base/Button.js'
@@ -10,6 +11,7 @@ export const Login = () => {
   return (
     <div className={styles.container}>
       <div className={styles.card}>
+        <img className={styles.logo} src={logoUrl} alt="" />
         <h1 className={styles.title}>{t('appName')}</h1>
         {loginError === 'denied' ? (
           <p className={styles.error}>{t('loginDenied')}</p>
