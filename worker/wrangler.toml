@@ -22,6 +22,5 @@ bucket_name = "chat-files"
 
 # 需要的 Secrets（wrangler secret put）：
 #   GITHUB_CLIENT_SECRET  OAuth App 的 Client Secret
-#   ALLOWED_GITHUB_ID     允许登录的 GitHub 数字 user id
+#   ADMIN_GITHUB_ID       管理员 GitHub 数字 user id（首个可登录账号，之后由管理界面加人）
 #   SESSION_SECRET        32 字节随机 hex，会话 Cookie 的 HMAC 密钥
-#   DEEPSEEK_API_KEY      DeepSeek API Key

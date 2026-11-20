@@ -3,9 +3,14 @@ import {
   handleAuthGithub,
   handleAuthLogout,
   handleAuthSession,
+  handleClearApiKey,
+  handleGetApiKey,
+  handleSetApiKey,
   requireAuth,
   type Env,
+  type SessionUser,
 } from './auth'
+import { handleAddUser, handleDeleteUser, handleListUsers } from './admin'
 import { handleLlmProxy } from './llm'
 import {
   handleAddStagingSession,
@@ -21,6 +26,14 @@ import {
   handleUpdateStagingFileTypes,
   handleUploadFile,
 } from './storage'
+
+const requireAdmin = (user: SessionUser): Response | null =>
+  user.isAdmin
+    ? null
+    : new Response(JSON.stringify({ error: 'forbidden' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      })
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -47,64 +60,100 @@ export default {
 
     // 其余 /api/* 一律鉴权
     if (path.startsWith('/api/')) {
-      const authError = await requireAuth(request, env)
-      if (authError) {
-        return authError
+      const auth = await requireAuth(request, env)
+      if (auth instanceof Response) {
+        return auth
       }
+      const user = auth
 
       if (path === '/api/llm' || path.startsWith('/api/llm/')) {
-        return handleLlmProxy(request, env)
+        return handleLlmProxy(request, env, user)
+      }
+
+      if (path === '/api/auth/api-key') {
+        if (request.method === 'GET') {
+          return handleGetApiKey(user, env)
+        }
+        if (request.method === 'PUT') {
+          return handleSetApiKey(request, user, env)
+        }
+        if (request.method === 'DELETE') {
+          return handleClearApiKey(user, env)
+        }
+      }
+
+      if (path === '/api/admin/users') {
+        const adminError = requireAdmin(user)
+        if (adminError) {
+          return adminError
+        }
+        if (request.method === 'GET') {
+          return handleListUsers(env)
+        }
+        if (request.method === 'PUT') {
+          return handleAddUser(request, env)
+        }
+      }
+      const adminUserMatch = path.match(/^\/api\/admin\/users\/(\d+)$/)
+      if (adminUserMatch) {
+        const adminError = requireAdmin(user)
+        if (adminError) {
+          return adminError
+        }
+        if (request.method === 'DELETE') {
+          return handleDeleteUser(adminUserMatch[1]!, env)
+        }
       }
 
       if (path === '/api/storage/sessions') {
         if (request.method === 'GET') {
-          return handleListSessions(env)
+          return handleListSessions(user.githubId, env)
         }
       }
       const sessionMatch = path.match(/^\/api\/storage\/sessions\/([^/]+)$/)
       if (sessionMatch) {
         const id = decodeURIComponent(sessionMatch[1]!)
         if (request.method === 'GET') {
-          return handleGetSession(id, env)
+          return handleGetSession(id, user.githubId, env)
         }
         if (request.method === 'PUT') {
-          return handleSaveSession(id, request, env)
+          return handleSaveSession(id, user.githubId, request, env)
         }
         if (request.method === 'PATCH') {
-          return handleRenameSession(id, request, env)
+          return handleRenameSession(id, user.githubId, request, env)
         }
         if (request.method === 'DELETE') {
-          return handleDeleteSession(id, env)
+          return handleDeleteSession(id, user.githubId, env)
         }
       }
 
       if (path === '/api/storage/files') {
         if (request.method === 'POST') {
-          return handleUploadFile(request, env)
+          return handleUploadFile(user.githubId, request, env)
         }
       }
       const fileMatch = path.match(/^\/api\/storage\/files\/([^/]+)$/)
       if (fileMatch) {
         const id = decodeURIComponent(fileMatch[1]!)
         if (request.method === 'GET') {
-          return handleGetFile(id, env)
+          return handleGetFile(id, user.githubId, env)
         }
       }
 
       if (path === '/api/storage/staging/sessions' && request.method === 'POST') {
-        return handleAddStagingSession(request, env)
+        return handleAddStagingSession(user.githubId, request, env)
       }
       if (path === '/api/storage/staging/files' && request.method === 'POST') {
-        return handleSaveStagingFiles(request, env)
+        return handleSaveStagingFiles(user.githubId, request, env)
       }
       if (path === '/api/storage/staging/types' && request.method === 'POST') {
-        return handleUpdateStagingFileTypes(request, env)
+        return handleUpdateStagingFileTypes(user.githubId, request, env)
       }
       if (path === '/api/storage/staging/clear' && request.method === 'POST') {
-        return handleClearStaging(env)
+        return handleClearStaging(user.githubId, env)
       }
       if (path === '/api/storage/staging/commit' && request.method === 'POST') {
-        return handleCommitStaging(env)
+        return handleCommitStaging(user.githubId, env)
       }
 
       return new Response('not found', { status: 404 })

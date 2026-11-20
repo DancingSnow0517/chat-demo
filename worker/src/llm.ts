@@ -1,12 +1,30 @@
-import type { Env } from './auth'
+import type { Env, SessionUser } from './auth'
 
 const LLM_BASE = 'https://api.deepseek.com'
 
-export const handleLlmProxy = async (request: Request, env: Env): Promise<Response> => {
+const json = (data: unknown, init?: ResponseInit) =>
+  new Response(JSON.stringify(data), {
+    headers: { 'Content-Type': 'application/json' },
+    ...init,
+  })
+
+export const handleLlmProxy = async (
+  request: Request,
+  env: Env,
+  user: SessionUser
+): Promise<Response> => {
   const url = new URL(request.url)
   const path = url.pathname.replace(/^\/api\/llm/, '')
   if (!path.startsWith('/')) {
     return new Response('bad path', { status: 400 })
+  }
+
+  const row = await env.DB.prepare('SELECT api_key FROM users WHERE github_id = ?')
+    .bind(user.githubId)
+    .first<{ api_key: string | null }>()
+  const apiKey = row?.api_key
+  if (!apiKey) {
+    return json({ error: 'api key not configured' }, { status: 401 })
   }
 
   const headers = new Headers(request.headers)
@@ -15,8 +33,8 @@ export const handleLlmProxy = async (request: Request, env: Env): Promise<Respon
   headers.delete('x-api-key')
   headers.delete('Host')
   headers.delete('Content-Length')
-  headers.set('x-api-key', env.DEEPSEEK_API_KEY)
-  headers.set('Authorization', `Bearer ${env.DEEPSEEK_API_KEY}`)
+  headers.set('x-api-key', apiKey)
+  headers.set('Authorization', `Bearer ${apiKey}`)
   // 带文件块的消息需要 anthropic-beta 头；客户端在 body 里已决定，这里统一补上
   if (!headers.has('anthropic-beta')) {
     headers.set('anthropic-beta', 'files-api-2025-04-14')

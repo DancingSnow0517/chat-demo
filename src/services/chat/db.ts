@@ -11,8 +11,9 @@ const API = '/api/storage'
 const request = async (url: string, init?: RequestInit): Promise<Response> => {
   const response = await fetch(url, init)
   if (!response.ok) {
-    if (response.status === 401) {
-      useAuth.setState({ state: 'unauthenticated' })
+    // /api/llm 的 401 代表用户没配 API Key，不是登录失效
+    if (response.status === 401 && !url.startsWith('/api/llm')) {
+      useAuth.setState({ state: 'unauthenticated', user: null })
     }
     throw new Error(`Storage request failed: ${response.status} ${response.statusText}`)
   }

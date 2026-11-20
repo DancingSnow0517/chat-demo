@@ -5,9 +5,16 @@ export interface Env {
   BUCKET: R2Bucket
   GITHUB_CLIENT_ID: string
   GITHUB_CLIENT_SECRET: string
-  ALLOWED_GITHUB_ID: string
+  ADMIN_GITHUB_ID: string
   SESSION_SECRET: string
-  DEEPSEEK_API_KEY: string
+}
+
+export interface SessionUser {
+  githubId: number
+  login: string
+  name: string
+  avatarUrl: string
+  isAdmin: boolean
 }
 
 const secretKey = (env: Env) => {
@@ -18,17 +25,36 @@ const secretKey = (env: Env) => {
   return new Uint8Array(hex.match(/.{2}/g)!.map((b) => parseInt(b, 16)))
 }
 
-export const signSession = async (env: Env): Promise<string> => {
+export const signSession = async (env: Env, user: SessionUser): Promise<string> => {
   const exp = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60
-  return new SignJWT({ exp }).setProtectedHeader({ alg: 'HS256' }).sign(secretKey(env))
+  return new SignJWT({
+    exp,
+    sub: String(user.githubId),
+    login: user.login,
+    name: user.name,
+    avatar: user.avatarUrl,
+    admin: user.isAdmin,
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .sign(secretKey(env))
 }
 
-export const verifySession = async (env: Env, token: string): Promise<boolean> => {
+export const verifySession = async (env: Env, token: string): Promise<SessionUser | null> => {
   try {
-    await jwtVerify(token, secretKey(env))
-    return true
+    const { payload } = await jwtVerify(token, secretKey(env))
+    const githubId = Number(payload.sub)
+    if (!Number.isInteger(githubId)) {
+      return null
+    }
+    return {
+      githubId,
+      login: String(payload.login ?? ''),
+      name: String(payload.name ?? ''),
+      avatarUrl: String(payload.avatar ?? ''),
+      isAdmin: payload.admin === true,
+    }
   } catch {
-    return false
+    return null
   }
 }
 
@@ -52,15 +78,16 @@ export const getSessionToken = (request: Request): string | null => {
   return null
 }
 
-export const requireAuth = async (request: Request, env: Env): Promise<Response | null> => {
+export const requireAuth = async (request: Request, env: Env): Promise<SessionUser | Response> => {
   const token = getSessionToken(request)
-  if (!token || !(await verifySession(env, token))) {
+  const user = token ? await verifySession(env, token) : null
+  if (!user) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
     })
   }
-  return null
+  return user
 }
 
 export const handleAuthGithub = (env: Env): Response => {
@@ -98,6 +125,13 @@ const redirect = (location: string, extraHeaders?: Record<string, string>) =>
     status: 302,
     headers: { Location: location, ...extraHeaders },
   })
+
+interface GitHubUser {
+  id?: number
+  login?: string
+  name?: string | null
+  avatar_url?: string
+}
 
 export const handleAuthCallback = async (request: Request, env: Env): Promise<Response> => {
   const url = new URL(request.url)
@@ -139,12 +173,43 @@ export const handleAuthCallback = async (request: Request, env: Env): Promise<Re
   if (!userResponse.ok) {
     return redirect('/?login_error=github', { 'Set-Cookie': clearStateHeader })
   }
-  const user = (await userResponse.json()) as { id?: number }
-  if (!user.id || String(user.id) !== env.ALLOWED_GITHUB_ID) {
+  const ghUser = (await userResponse.json()) as GitHubUser
+  if (!ghUser.id || !ghUser.login) {
+    return redirect('/?login_error=github', { 'Set-Cookie': clearStateHeader })
+  }
+
+  const now = Date.now()
+  const name = ghUser.name ?? ghUser.login
+  const avatarUrl = ghUser.avatar_url ?? ''
+  const isAdmin = String(ghUser.id) === env.ADMIN_GITHUB_ID ? 1 : 0
+
+  const existing = await env.DB.prepare('SELECT github_id FROM users WHERE github_id = ?')
+    .bind(ghUser.id)
+    .first<{ github_id: number }>()
+
+  if (existing) {
+    await env.DB.prepare(
+      'UPDATE users SET login = ?, name = ?, avatar_url = ?, is_admin = ?, last_login_at = ? WHERE github_id = ?'
+    )
+      .bind(ghUser.login, name, avatarUrl, isAdmin, now, ghUser.id)
+      .run()
+  } else if (isAdmin) {
+    await env.DB.prepare(
+      'INSERT INTO users (github_id, login, name, avatar_url, is_admin, created_at, last_login_at) VALUES (?, ?, ?, ?, 1, ?, ?)'
+    )
+      .bind(ghUser.id, ghUser.login, name, avatarUrl, now, now)
+      .run()
+  } else {
     return redirect('/?login_error=denied', { 'Set-Cookie': clearStateHeader })
   }
 
-  const token = await signSession(env)
+  const token = await signSession(env, {
+    githubId: ghUser.id,
+    login: ghUser.login,
+    name,
+    avatarUrl,
+    isAdmin: isAdmin === 1,
+  })
   const headers = new Headers({
     Location: '/',
     'Set-Cookie': clearStateHeader,
@@ -155,18 +220,64 @@ export const handleAuthCallback = async (request: Request, env: Env): Promise<Re
 
 export const handleAuthSession = async (request: Request, env: Env): Promise<Response> => {
   const token = getSessionToken(request)
-  if (!token || !(await verifySession(env, token))) {
+  const user = token ? await verifySession(env, token) : null
+  if (!user) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
     })
   }
-  return new Response(JSON.stringify({ ok: true }), {
-    headers: { 'Content-Type': 'application/json' },
-  })
+  const row = await env.DB.prepare('SELECT api_key FROM users WHERE github_id = ?')
+    .bind(user.githubId)
+    .first<{ api_key: string | null }>()
+  return new Response(
+    JSON.stringify({
+      githubId: user.githubId,
+      login: user.login,
+      name: user.name,
+      avatarUrl: user.avatarUrl,
+      isAdmin: user.isAdmin,
+      hasApiKey: Boolean(row?.api_key),
+    }),
+    { headers: { 'Content-Type': 'application/json' } }
+  )
 }
 
 export const handleAuthLogout = (): Response =>
   new Response(JSON.stringify({ ok: true }), {
     headers: { 'Content-Type': 'application/json', 'Set-Cookie': clearSessionCookie() },
   })
+
+const json = (data: unknown, init?: ResponseInit) =>
+  new Response(JSON.stringify(data), {
+    headers: { 'Content-Type': 'application/json' },
+    ...init,
+  })
+
+const error = (status: number, message: string) => json({ error: message }, { status })
+
+/** 当前用户已设置过 Key 时只回显存在标志，不回传 Key 本体。 */
+export const handleGetApiKey = async (user: SessionUser, env: Env): Promise<Response> => {
+  const row = await env.DB.prepare('SELECT api_key FROM users WHERE github_id = ?')
+    .bind(user.githubId)
+    .first<{ api_key: string | null }>()
+  return json({ hasApiKey: Boolean(row?.api_key) })
+}
+
+export const handleSetApiKey = async (request: Request, user: SessionUser, env: Env): Promise<Response> => {
+  const payload = (await request.json()) as { apiKey?: string }
+  if (typeof payload.apiKey !== 'string' || !payload.apiKey.trim()) {
+    return error(400, 'invalid api key')
+  }
+  await env.DB.prepare('UPDATE users SET api_key = ? WHERE github_id = ?')
+    .bind(payload.apiKey.trim(), user.githubId)
+    .run()
+  return json({ ok: true })
+}
+
+export const handleClearApiKey = async (user: SessionUser, env: Env): Promise<Response> => {
+  await env.DB.prepare('UPDATE users SET api_key = NULL WHERE github_id = ?')
+    .bind(user.githubId)
+    .run()
+  return json({ ok: true })
+}

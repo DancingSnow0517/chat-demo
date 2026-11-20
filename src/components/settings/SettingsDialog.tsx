@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   IconDarkOutline16,
   IconDataOutline16,
@@ -27,7 +27,8 @@ import {
   type ThemePreference,
 } from '../../services/settings.js'
 import { useTranslate, type TranslationKey, type TranslationMessage } from '../../i18n/index.js'
-import { logout } from '../../services/auth.js'
+import { clearApiKey, logout, setApiKey, useAuth } from '../../services/auth.js'
+import { addUser, deleteUser, listUsers, type AdminUser } from '../../services/admin.js'
 import { Button } from '../base/Button.js'
 import { Modal } from '../base/Modal.js'
 import { Select } from '../base/Select.js'
@@ -44,13 +45,14 @@ export const SettingsDialog = () => {
   return open ? <SettingsContent /> : null
 }
 
-const sections: { value: SettingsSection; label: TranslationKey; icon: ReactNode }[] = [
+const baseSections: { value: SettingsSection; label: TranslationKey; icon: ReactNode }[] = [
   {
     value: 'general',
     label: 'settingDialogAsideGeneralOptionLabel',
     icon: <IconSettingsOutline16 />,
   },
   { value: 'data', label: 'settingDialogAsideDataOptionLabel', icon: <IconDataOutline16 /> },
+  { value: 'account', label: 'settingsAccount', icon: <IconSettingsOutline16 /> },
 ]
 
 const SettingsContent = () => {
@@ -61,6 +63,10 @@ const SettingsContent = () => {
   const historyDelete = useHistoryDelete()
   const replacingHistory = useChatStore((state) => state.importingHistory)
   const historyBusy = historyImport.busy || historyDelete.busy || replacingHistory
+  const user = useAuth((state) => state.user)
+  const sections = user?.isAdmin
+    ? [...baseSections, { value: 'admin' as const, label: 'settingsUserManagement' as const, icon: <IconSettingsOutline16 /> }]
+    : baseSections
   return (
     <>
       <Modal
@@ -97,22 +103,8 @@ const SettingsContent = () => {
               <TtsVoiceSetting />
               <LocationSetting />
             </>
-          ) : (
+          ) : section === 'data' ? (
             <>
-              <SettingCell
-                label={t('settingsAccount')}
-                status={null}
-                action={
-                  <Button
-                    variant="outlined"
-                    size="m"
-                    className={styles.cellButton}
-                    onClick={() => void logout()}
-                  >
-                    {t('logout')}
-                  </Button>
-                }
-              />
               <ImportHistory historyImport={historyImport} disabled={historyBusy} />
               <ExportHistory disabled={historyBusy} />
               <SettingCell
@@ -131,6 +123,10 @@ const SettingsContent = () => {
                 }
               />
             </>
+          ) : section === 'account' ? (
+            <AccountSection />
+          ) : (
+            <AdminSection />
           )}
         </div>
       </Modal>
@@ -563,5 +559,218 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
         </Button>
       }
     />
+  )
+}
+
+/** 账户分组：用户信息、API Key 管理、登出 */
+const AccountSection = () => {
+  const t = useTranslate()
+  const user = useAuth((state) => state.user)
+  const [keyInput, setKeyInput] = useState('')
+  const [keyBusy, setKeyBusy] = useState(false)
+  const [keyStatus, setKeyStatus] = useState<Status>(null)
+
+  if (!user) {
+    return null
+  }
+
+  const onSaveKey = async () => {
+    if (!keyInput.trim() || keyBusy) {
+      return
+    }
+    setKeyBusy(true)
+    setKeyStatus(null)
+    try {
+      await setApiKey(keyInput.trim())
+      setKeyInput('')
+      setKeyStatus({ key: 'apiKeySetSuccess' })
+    } catch {
+      setKeyStatus({ key: 'apiKeySetFailed', error: true })
+    } finally {
+      setKeyBusy(false)
+    }
+  }
+
+  const onClearKey = async () => {
+    if (keyBusy) {
+      return
+    }
+    setKeyBusy(true)
+    setKeyStatus(null)
+    try {
+      await clearApiKey()
+      setKeyStatus({ key: 'apiKeyClearSuccess' })
+    } catch {
+      setKeyStatus({ key: 'apiKeyClearFailed', error: true })
+    } finally {
+      setKeyBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <div className={styles.accountUser}>
+        <img className={styles.accountAvatar} src={user.avatarUrl} alt="" />
+        <div className={styles.accountUserText}>
+          <span className={styles.accountUserName}>{user.name}</span>
+          <span className={styles.accountUserLogin}>@{user.login}</span>
+        </div>
+        <Button variant="outlined" size="m" className={styles.cellButton} onClick={() => void logout()}>
+          {t('logout')}
+        </Button>
+      </div>
+      <SettingCell
+        label={t('settingsApiKey')}
+        description={t('apiKeyDescription')}
+        status={keyStatus}
+        action={
+          <div className={styles.apiKeyForm}>
+            <input
+              className={styles.apiKeyInput}
+              type="password"
+              placeholder={user.hasApiKey ? t('apiKeySet') : t('apiKeyPlaceholder')}
+              value={keyInput}
+              disabled={keyBusy}
+              onChange={(event) => setKeyInput(event.target.value)}
+            />
+            <Button variant="primary" size="m" disabled={keyBusy || !keyInput.trim()} onClick={() => void onSaveKey()}>
+              {t('save')}
+            </Button>
+            {user.hasApiKey ? (
+              <Button variant="dangerOutlined" size="m" disabled={keyBusy} onClick={() => void onClearKey()}>
+                {t('clear')}
+              </Button>
+            ) : null}
+          </div>
+        }
+      />
+    </>
+  )
+}
+
+/** 管理员分组：用户列表 + 添加/删除 */
+const AdminSection = () => {
+  const t = useTranslate()
+  const [users, setUsers] = useState<AdminUser[] | null>(null)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [githubIdInput, setGithubIdInput] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<AdminUser | null>(null)
+
+  const reload = async () => {
+    try {
+      setLoadFailed(false)
+      setUsers(await listUsers())
+    } catch {
+      setLoadFailed(true)
+    }
+  }
+
+  useEffect(() => {
+    void reload()
+  }, [])
+
+  const onAdd = async () => {
+    const id = Number(githubIdInput.trim())
+    if (!Number.isInteger(id) || id <= 0 || busy) {
+      return
+    }
+    setBusy(true)
+    try {
+      await addUser(id)
+      setGithubIdInput('')
+      showToast({ key: 'userManagementAddSuccess' })
+      await reload()
+    } catch {
+      showToast({ key: 'userManagementAddFailed', type: 'error' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const onConfirmDelete = async () => {
+    if (!pendingDelete || busy) {
+      return
+    }
+    setBusy(true)
+    try {
+      await deleteUser(pendingDelete.githubId)
+      setPendingDelete(null)
+      showToast({ key: 'userManagementDeleted' })
+      await reload()
+    } catch {
+      showToast({ key: 'userManagementDeleteFailed', type: 'error' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <div className={styles.userAddForm}>
+        <input
+          className={styles.userAddInput}
+          type="text"
+          inputMode="numeric"
+          placeholder={t('userManagementGithubIdPlaceholder')}
+          value={githubIdInput}
+          disabled={busy}
+          onChange={(event) => setGithubIdInput(event.target.value)}
+        />
+        <Button variant="primary" size="m" disabled={busy || !githubIdInput.trim()} onClick={() => void onAdd()}>
+          {t('userManagementAddUser')}
+        </Button>
+      </div>
+      {loadFailed ? (
+        <div className={styles.userListEmpty}>{t('userManagementLoadFailed')}</div>
+      ) : users === null ? (
+        <div className={styles.userListEmpty}>…</div>
+      ) : (
+        <div className={styles.userList}>
+          {users.map((user) => (
+            <div key={user.githubId} className={styles.userItem}>
+              <img className={styles.userItemAvatar} src={user.avatarUrl} alt="" />
+              <div className={styles.userItemText}>
+                <div className={styles.userItemName}>
+                  <span>{user.name}</span>
+                  {user.isAdmin ? <span className={styles.userAdminBadge}>{t('userManagementIsAdmin')}</span> : null}
+                </div>
+                <div className={styles.userItemMeta}>
+                  @{user.login} · {user.lastLoginAt ? `${t('userManagementLastLogin')} ${new Date(user.lastLoginAt).toLocaleDateString()}` : t('userManagementNeverLoggedIn')}
+                </div>
+              </div>
+              {!user.isAdmin ? (
+                <Button
+                  variant="dangerOutlined"
+                  size="s"
+                  disabled={busy}
+                  onClick={() => setPendingDelete(user)}
+                >
+                  {t('userManagementDelete')}
+                </Button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+      {pendingDelete ? (
+        <Modal
+          title={t('userManagementDelete')}
+          onClose={() => setPendingDelete(null)}
+          footer={
+            <>
+              <Button variant="outlined" size="m" disabled={busy} onClick={() => setPendingDelete(null)}>
+                {t('cancel')}
+              </Button>
+              <Button variant="danger" size="m" disabled={busy} onClick={() => void onConfirmDelete()}>
+                {t('userManagementDelete')}
+              </Button>
+            </>
+          }
+        >
+          {t('userManagementDeleteConfirm')}
+        </Modal>
+      ) : null}
+    </>
   )
 }
