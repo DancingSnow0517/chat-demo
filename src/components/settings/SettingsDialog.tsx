@@ -623,6 +623,7 @@ const AccountSection = () => {
       <SettingCell
         label={t('settingsApiKey')}
         status={keyStatus}
+        className={styles.apiKeyCell}
         action={
           <div className={styles.apiKeyForm}>
             <input
