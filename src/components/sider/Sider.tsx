@@ -18,6 +18,7 @@ import { Button } from '../base/Button.js'
 import { IconButton } from '../base/IconButton.js'
 import { Menu } from '../base/Menu.js'
 import { Modal } from '../base/Modal.js'
+import logoUrl from '../../assets/logo.png'
 import { showToast } from '../base/toastState.js'
 import { openSettings } from '../settings/settingsDialogState.js'
 import { closeMobileSider, useMobileSider } from './mobileSiderState.js'
@@ -63,7 +64,10 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   return (
     <div className={clsx(styles.sider, mobile && styles.mobile)}>
       <div className={styles.top}>
-        <div className={styles.appName}>{t('appName')}</div>
+        <div className={styles.appName}>
+          <img className={styles.appLogo} src={logoUrl} alt="" />
+          {t('appName')}
+        </div>
         <IconButton
           size="m"
           icon={<IconPanelLeftOutline16 />}
