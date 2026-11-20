@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useTranslate } from '../i18n/index.js'
 import { useSettings } from '../services/settings.js'
+import { checkSession, useAuth } from '../services/auth.js'
 import { useIsMobile, useMobileViewport, usePreventPageScroll } from './viewport.js'
 import {
   bindChatPersistence,
@@ -14,8 +15,8 @@ import { closeSearchPanel } from '../components/search/searchPanelState.js'
 import { SessionView } from '../components/session/SessionView.js'
 import { MobileHeader } from '../components/session/MobileHeader.js'
 import { Welcome } from '../components/session/Welcome.js'
-import { ensureApiKey } from '../components/settings/settingsDialogState.js'
 import { SettingsDialog } from '../components/settings/SettingsDialog.js'
+import { Login } from '../components/settings/Login.js'
 import { Toast } from '../components/base/Toast.js'
 import { showToast } from '../components/base/toastState.js'
 import { onUploadNotice } from '../services/attachments.js'
@@ -28,6 +29,7 @@ import styles from './App.module.css'
 
 export const App = () => {
   const t = useTranslate()
+  const authState = useAuth((state) => state.state)
   const isMobile = useIsMobile()
   const locale = useSettings((state) => state.locale)
   // 移动端侧边栏以独立抽屉管理开合状态
@@ -68,10 +70,30 @@ export const App = () => {
   useEffect(closeMobileSider, [activeId, isMobile])
 
   useEffect(() => {
-    void initChat()
-    // 首次打开先在设置里输入 API Key
-    ensureApiKey()
+    void checkSession()
   }, [])
+
+  useEffect(() => {
+    if (authState === 'authenticated') {
+      void initChat()
+    }
+  }, [authState])
+
+  if (authState === 'loading') {
+    return (
+      <div className={styles.frame}>
+        <div className={styles.loadingView}>
+          <div className={styles.loadingState} role="status" aria-live="polite">
+            <span>{t('sessionLoading')}</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (authState === 'unauthenticated') {
+    return <Login />
+  }
 
   return (
     <>

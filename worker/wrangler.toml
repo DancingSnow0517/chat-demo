@@ -1,0 +1,27 @@
+name = "chat"
+main = "src/index.ts"
+compatibility_date = "2025-11-01"
+workers_dev = false
+
+# 自定义域名：worker 只接管 /api/*，其余路径回源 GitHub Pages
+routes = [{ pattern = "chat.dancingsnow.xyz/api/*", zone_name = "dancingsnow.xyz" }]
+
+[vars]
+# GitHub OAuth App 的 Client ID（非敏感）
+GITHUB_CLIENT_ID = "Ov23liZ4Lf03QhW70bbe"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "chat"
+database_id = "55c1998b-1f78-4157-b4d7-2d6867b8ef69"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "chat-files"
+
+# 需要的 Secrets（wrangler secret put）：
+#   GITHUB_CLIENT_SECRET  OAuth App 的 Client Secret
+#   ALLOWED_GITHUB_ID     允许登录的 GitHub 数字 user id
+#   SESSION_SECRET        32 字节随机 hex，会话 Cookie 的 HMAC 密钥
+#   DEEPSEEK_API_KEY      DeepSeek API Key

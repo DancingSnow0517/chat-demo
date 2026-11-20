@@ -17,7 +17,7 @@ const cssLoader = {
 }
 
 type ConfigOptions = {
-  /** 公开 API 的地址，注入为 __API_ORIGIN__ */
+  /** 前端请求的前缀；生产为空表示同源，本地开发留空由 devServer 代理到 Worker */
   apiOrigin?: string
   /** 开发服务器配置，支持本地接口代理 */
   devServer?: Configuration['devServer']
@@ -25,7 +25,7 @@ type ConfigOptions = {
 
 /** 创建构建配置，支持自定义 API 地址和开发服务器选项 */
 export const createConfig = ({
-  apiOrigin = 'https://api.deepseek.com',
+  apiOrigin = '/api/llm',
   devServer,
 }: ConfigOptions = {}): Configuration => ({
   mode: dev ? 'development' : 'production',
@@ -86,7 +86,11 @@ export const createConfig = ({
     }),
   ],
   performance: { hints: false },
-  devServer: { port: 8090, ...devServer },
+  devServer: {
+    port: 8090,
+    proxy: [{ context: ['/api'], target: 'http://localhost:8787' }],
+    ...devServer,
+  },
 })
 
 // eslint-disable-next-line import/no-default-export
