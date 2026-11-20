@@ -27,11 +27,26 @@ export const listUsers = async (): Promise<AdminUser[]> => {
   return (await response.json()) as AdminUser[]
 }
 
+/** 先用 GitHub 公开 API 把 username 转成数字 ID，再发给 Worker。 */
 export const addUser = async (login: string): Promise<void> => {
+  const username = login.trim().replace(/^@/, '')
+  if (!username) {
+    throw new Error('empty login')
+  }
+  const ghResponse = await fetch(`https://api.github.com/users/${encodeURIComponent(username)}`, {
+    headers: { Accept: 'application/vnd.github+json' },
+  })
+  if (!ghResponse.ok) {
+    throw new Error(`GitHub user not found: ${ghResponse.status}`)
+  }
+  const ghUser = (await ghResponse.json()) as { id?: number }
+  if (!ghUser.id) {
+    throw new Error('GitHub user missing id')
+  }
   await request('/api/admin/users', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ login }),
+    body: JSON.stringify({ githubId: ghUser.id }),
   })
 }
 

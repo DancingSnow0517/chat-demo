@@ -36,13 +36,12 @@ export const handleListUsers = async (env: Env): Promise<Response> => {
 }
 
 export const handleAddUser = async (request: Request, env: Env): Promise<Response> => {
-  const payload = (await request.json()) as { login?: string }
-  const login = typeof payload.login === 'string' ? payload.login.trim().replace(/^@/, '') : ''
-  if (!login || !/^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?$/.test(login)) {
-    return error(400, 'invalid github login')
+  const payload = (await request.json()) as { githubId?: number }
+  if (typeof payload.githubId !== 'number' || !Number.isInteger(payload.githubId) || payload.githubId <= 0) {
+    return error(400, 'invalid github id')
   }
 
-  const response = await fetch(`https://api.github.com/users/${encodeURIComponent(login)}`, {
+  const response = await fetch(`https://api.github.com/user/${payload.githubId}`, {
     headers: {
       Accept: 'application/vnd.github+json',
       'User-Agent': 'chat-worker',
